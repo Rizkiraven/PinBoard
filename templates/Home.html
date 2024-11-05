@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PinBoard - Home</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+
+    <!-- Script untuk debugging koneksi -->
+    <script>
+        // Cek apakah file JavaScript terkoneksi
+        console.log('Main.js loaded');
+        
+        // Tambahkan event listener untuk memastikan DOM sudah siap
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM fully loaded');
+            
+            // Test fungsi like
+            const likeButtons = document.querySelectorAll('.like-button');
+            likeButtons.forEach(button => {
+                button.addEventListener('click', function(e) {
+                    // Prevent default untuk mencegah scroll
+                    e.preventDefault();
+                    console.log('Like button clicked');
+                });
+            });
+        });
+    </script>
+
+    <style>
+        .pin-container {
+            column-count: 5;
+            column-gap: 16px;
+            padding: 16px;
+        }
+        .pin-item {
+            break-inside: avoid;
+            margin-bottom: 16px;
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+        }
+        .pin-item:hover .pin-overlay {
+            opacity: 1;
+        }
+        .pin-overlay {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            background: rgba(0, 0, 0, 0.5);
+        }
+        .search-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        .search-modal.active {
+            display: flex;
+        }
+        @media (max-width: 1200px) {
+            .pin-container { column-count: 4; }
+        }
+        @media (max-width: 992px) {
+            .pin-container { column-count: 3; }
+        }
+        @media (max-width: 768px) {
+            .pin-container { column-count: 2; }
+        }
+
+        /* Tambahkan style untuk modal likes */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        .modal.active {
+            display: flex;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Success Notification -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="notification {{ 'bg-green-500' if category == 'success' else 'bg-red-500' }} text-white">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Search Modal -->
+    <div id="searchModal" class="search-modal">
+        <div class="bg-white w-full max-w-2xl mx-auto mt-20 rounded-lg shadow-lg p-6">
+            <div class="flex items-center mb-4">
+                <input type="text" id="searchInput" class="w-full p-2 border rounded-lg" placeholder="Search pins...">
+                <button onclick="closeSearch()" class="ml-4 text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="flex space-x-2 mb-4">
+                {% for category in categories %}
+                <button onclick="filterByCategory('{{ category._id }}')" class="px-3 py-1 rounded-full bg-gray-200 hover:bg-gray-300 text-sm">
+                    {{ category.name }}
+                </button>
+                {% endfor %}
+            </div>
+            <div id="searchResults" class="grid grid-cols-2 gap-4"></div>
+        </div>
+    </div>
+
+    <!-- Navigation Bar -->
+    <nav class="bg-white shadow-md fixed w-full z-10">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <a href="{{ url_for('home') }}" class="text-red-600 text-2xl font-bold">PinBoard</a>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <button onclick="openSearch()" class="p-2 hover:bg-gray-100 rounded-full">
+                        <i class="fas fa-search text-xl"></i>
+                    </button>
+                    <a href="{{ url_for('create_post') }}" class="p-2 hover:bg-gray-100 rounded-full">
+                        <i class="fas fa-plus text-xl"></i>
+                    </a>
+                    <button class="p-2 hover:bg-gray-100 rounded-full">
+                        <i class="fas fa-bell text-xl"></i>
+                    </button>
+                    <div class="relative">
+                        <a href="{{ url_for('profile') }}">
+                            <button class="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-full">
+                                <img src="/api/placeholder/32/32" class="w-8 h-8 rounded-full" alt="Profile">
+                                <span class="font-medium">{{ username }}</span> 
+                            </button>
+                        </a>
+                    </div>
+                    <a href="{{ url_for('logout') }}" class="p-2 hover:bg-gray-100 rounded-full">
+                        <i class="fas fa-sign-out-alt text-xl"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="pt-20">
+        <div class="pin-container">
+            {% for post in posts %}
+            <div class="pin-item shadow-lg" data-post-id="{{ post._id }}">
+                <div class="relative">
+                    <img src="{{ post.image_url }}" class="w-full" alt="{{ post.title }}">
+                    <div class="pin-overlay absolute inset-0 flex flex-col justify-between p-4">
+                        <div class="flex justify-end space-x-2">
+                            <button onclick="toggleLike('{{ post._id }}')" 
+                                    class="like-button bg-white p-2 rounded-full hover:bg-gray-100 {{ 'text-red-500' if post.is_liked else '' }}"
+                                    title="{{ 'Liked on ' + post.liked_at if post.is_liked else 'Like this post' }}">
+                                <i class="{{ 'fas' if post.is_liked else 'far' }} fa-heart"></i>
+                            </button>
+                            <button class="bg-white p-2 rounded-full hover:bg-gray-100">
+                                <i class="fas fa-bookmark"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-3 bg-white">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm">By @{{ post.user_id }}</span>
+                        <div class="flex items-center space-x-2">
+                            <div class="relative group">
+                                <span class="like-count text-sm cursor-pointer hover:text-blue-500" 
+                                      onclick="showLikeDetails('{{ post._id }}')">
+                                    {{ post.likes_count }} likes
+                                </span>
+                                
+                                <!-- Tooltip untuk recent likes -->
+                                <div class="hidden group-hover:block absolute bottom-full left-0 mb-2 w-48 bg-white rounded-lg shadow-lg p-2 text-xs">
+                                    {% if post.recent_likes %}
+                                        <div class="font-medium mb-1">Recent likes:</div>
+                                        {% for like in post.recent_likes %}
+                                            <div class="mb-1">
+                                                @{{ like.user_id }} 
+                                                <span class="text-gray-500">{{ like.liked_at }}</span>
+                                            </div>
+                                        {% endfor %}
+                                        {% if post.likes_count > 3 %}
+                                            <div class="text-blue-500 cursor-pointer" 
+                                                 onclick="showAllLikes('{{ post._id }}')">
+                                                View all likes...
+                                            </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <div>No likes yet</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-2">
+                        <p class="text-sm">{{ post.description }}</p>
+                    </div>
+
+                    {% if post.is_liked %}
+                    <div class="mt-2 text-xs text-gray-500">
+                        You liked this post
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </main>
+
+    <!-- Modal untuk menampilkan semua likes -->
+    <div id="likesModal" class="modal">
+        <div class="bg-white rounded-lg p-4 max-w-md w-full max-h-96 overflow-y-auto m-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium">Likes</h3>
+                <button onclick="closeLikesModal()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="likesList" class="space-y-2"></div>
+        </div>
+    </div>
+
+    <!-- Tambahkan script JavaScript -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
